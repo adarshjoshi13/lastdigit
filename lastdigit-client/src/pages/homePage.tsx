@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { getSingaporeLatest } from '../api/client'
 
 const actions = [
     {
@@ -23,7 +25,7 @@ const actions = [
         icon: <NumberIcon />,
     },
     {
-        to: '/today',
+        to: '/fax',
         label: 'Lottery Fax',
         sublabel: 'Show Result',
         tone: 'pink',
@@ -37,7 +39,7 @@ const actions = [
         icon: <LuckyIcon />,
     },
     {
-        to: 'mailto:?subject=Lucky%20Check&body=Check%20today%27s%20lottery%20results',
+        to: 'mailto:?subject=Last%20Digit%20Lottery&body=Check%20today%27s%20lottery%20results%20live',
         label: 'Share App',
         sublabel: 'Invite Friends',
         tone: 'orange',
@@ -52,7 +54,7 @@ const actions = [
         icon: <PrivacyIcon />,
     },
     {
-        to: 'mailto:?subject=Lucky%20Check%20feedback',
+        to: 'mailto:?subject=Last%20Digit%20Feedback',
         label: 'Rate Us',
         sublabel: 'Send Feedback',
         tone: 'cyan',
@@ -62,6 +64,27 @@ const actions = [
 ] as const
 
 export default function HomePage() {
+    const [latestDate, setLatestDate] = useState<string>('')
+
+    useEffect(() => {
+        let isMounted = true
+
+        // Fetch live latest draw date from server
+        getSingaporeLatest()
+            .then((res) => {
+                if (isMounted && res.success && res.dateFormatted) {
+                    setLatestDate(res.dateFormatted)
+                }
+            })
+            .catch(() => {
+                // If offline or empty
+            })
+
+        return () => {
+            isMounted = false
+        }
+    }, [])
+
     return (
         <div className="hub-shell">
             {/* ── Header ── */}
@@ -75,22 +98,21 @@ export default function HomePage() {
                         <span className="home-brand-sub">Lottery Results</span>
                     </div>
                 </div>
-                <button className="home-notif-btn" aria-label="Notifications">
-                    <BellIcon />
-                </button>
             </header>
 
             <main className="hub-main">
-                {/* ── Today's draw banner ── */}
+                {/* ── Live draw banner ── */}
                 <Link className="today-cta" to="/today">
                     <div className="today-cta-inner">
                         <div>
                             <span className="today-kicker">
                                 <span className="live-dot" />
-                                Live · Today's Draw
+                                Live · Latest Draw
                             </span>
                             <strong>Check Your Ticket</strong>
-                            <span className="today-cta-hint">Saturday, May 24 · Weekly Draw</span>
+                            <span className="today-cta-hint">
+                                {latestDate ? `${latestDate} · Official Draw` : 'Live Draw Check'}
+                            </span>
                         </div>
                         <span className="today-arrow">
                             <ChevronIcon />
@@ -150,15 +172,6 @@ function MarkIcon() {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
-    )
-}
-
-function BellIcon() {
-    return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
     )
 }

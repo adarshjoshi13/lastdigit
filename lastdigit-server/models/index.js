@@ -1,6 +1,6 @@
 const sequelize = require('../config/database');
 const User = require('./User');
-const { SingaporeLottery, DearLottery } = require('./Lottery');
+const { SingaporeLottery, DearLottery, SESSIONS } = require('./Lottery');
 
 // Export all models and the sequelize instance
 module.exports = {
@@ -8,5 +8,6 @@ module.exports = {
   User,
   SingaporeLottery,
   DearLottery,
+  SESSIONS,
 };
 

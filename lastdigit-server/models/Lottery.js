@@ -1,8 +1,8 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-// ─── Shared session ENUM values ───────────────────────────────────────────────
-const SESSION_VALUES = ['morning', 'day', 'evening', 'night'];
+// Exactly 3 games per day for each digit: morning, day, evening
+const SESSIONS = ['morning', 'day', 'evening'];
 
 // ─── Singapore Lottery Result ────────────────────────────────────────────────
 const SingaporeLottery = sequelize.define(
@@ -19,62 +19,50 @@ const SingaporeLottery = sequelize.define(
       comment: 'Date of the draw (YYYY-MM-DD)',
     },
     session: {
-      type: DataTypes.ENUM(...SESSION_VALUES),
+      type: DataTypes.ENUM(...SESSIONS),
+      allowNull: false,
+      comment: 'Game time: morning | day | evening',
+    },
+    singleDigit: {
+      type: DataTypes.STRING(10),
       allowNull: true,
-      comment: 'Time slot: morning | day | evening | night',
+      comment: 'Winning number for single digit (1 digit, e.g. 7)',
+    },
+    doubleDigit: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+      comment: 'Winning number for double digit (2 digits, e.g. 27)',
+    },
+    tripleDigit: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+      comment: 'Winning number for triple digit (3 digits, e.g. 827)',
+    },
+    resultImage: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      comment: 'Uploaded result image filename under /uploads/singapore/',
     },
     drawNumber: {
       type: DataTypes.STRING(50),
       allowNull: true,
-      comment: 'Official draw / batch number',
-    },
-    // Full winning numbers, comma-separated e.g. "12,34,56,07,23,45"
-    winningNumbers: {
-      type: DataTypes.STRING(255),
-      allowNull: true,
-    },
-    firstPrize: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-    },
-    secondPrize: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-    },
-    thirdPrize: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-    },
-    // Last-digit breakdown (the core feature of this app)
-    lastOneDigit: {
-      type: DataTypes.STRING(1),
-      allowNull: true,
-      comment: 'Last 1 digit of the winning number',
-    },
-    lastTwoDigits: {
-      type: DataTypes.STRING(2),
-      allowNull: true,
-      comment: 'Last 2 digits of the winning number',
-    },
-    lastThreeDigits: {
-      type: DataTypes.STRING(3),
-      allowNull: true,
-      comment: 'Last 3 digits of the winning number',
-    },
-    // Path / URL of the uploaded result image
-    resultImage: {
-      type: DataTypes.STRING(500),
-      allowNull: true,
-      comment: 'Stored filename under /uploads/singapore/',
+      comment: 'Optional draw batch or reference number',
     },
     isPublished: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false,
+      defaultValue: true,
     },
   },
   {
     tableName: 'singapore_lottery_results',
     timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ['drawDate', 'session'],
+        name: 'idx_singapore_date_session',
+      },
+    ],
   }
 );
 
@@ -90,70 +78,54 @@ const DearLottery = sequelize.define(
     drawDate: {
       type: DataTypes.DATEONLY,
       allowNull: false,
+      comment: 'Date of the draw (YYYY-MM-DD)',
     },
     session: {
-      type: DataTypes.ENUM(...SESSION_VALUES),
-      allowNull: true,
-      comment: 'Time slot: morning | day | evening | night',
-    },
-    lotteryName: {
-      type: DataTypes.STRING(150),
+      type: DataTypes.ENUM(...SESSIONS),
       allowNull: false,
-      comment: 'e.g. Dear Morning, Dear Evening, Dear Night',
+      comment: 'Game time: morning | day | evening',
+    },
+    singleDigit: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+      comment: 'Winning number for single digit (1 digit, e.g. 4)',
+    },
+    doubleDigit: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+      comment: 'Winning number for double digit (2 digits, e.g. 94)',
+    },
+    tripleDigit: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+      comment: 'Winning number for triple digit (3 digits, e.g. 194)',
+    },
+    resultImage: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      comment: 'Uploaded result image filename under /uploads/dear/',
     },
     drawNumber: {
       type: DataTypes.STRING(50),
       allowNull: true,
-    },
-    firstPrize: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-    },
-    secondPrize: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-    },
-    thirdPrize: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-    },
-    // Last-digit breakdown
-    lastOneDigit: {
-      type: DataTypes.STRING(1),
-      allowNull: true,
-      comment: 'Last 1 digit of the winning number',
-    },
-    lastTwoDigits: {
-      type: DataTypes.STRING(2),
-      allowNull: true,
-      comment: 'Last 2 digits of the winning number',
-    },
-    lastThreeDigits: {
-      type: DataTypes.STRING(3),
-      allowNull: true,
-      comment: 'Last 3 digits of the winning number',
-    },
-    // Extra prizes stored as JSON array: [{rank, ticketNumber, amount}]
-    consolationPrizes: {
-      type: DataTypes.JSON,
-      allowNull: true,
-    },
-    // Path / URL of the uploaded result image
-    resultImage: {
-      type: DataTypes.STRING(500),
-      allowNull: true,
-      comment: 'Stored filename under /uploads/dear/',
+      comment: 'Optional draw batch or reference number',
     },
     isPublished: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false,
+      defaultValue: true,
     },
   },
   {
     tableName: 'dear_lottery_results',
     timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ['drawDate', 'session'],
+        name: 'idx_dear_date_session',
+      },
+    ],
   }
 );
 
-module.exports = { SingaporeLottery, DearLottery, SESSION_VALUES };
-
+module.exports = { SingaporeLottery, DearLottery, SESSIONS };

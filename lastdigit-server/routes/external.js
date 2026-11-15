@@ -2,81 +2,79 @@
  * External Website API Routes
  * Base: /api/external
  *
- * Authentication: X-API-Key header  (set EXTERNAL_API_KEY in .env)
+ * Authentication: X-API-Key header (set EXTERNAL_API_KEY in .env)
  *
- * ┌─────────────────────────────────────────────────────────────────────┐
- * │  POST /api/external/upload        — upload result data (no image)  │
- * │  POST /api/external/upload-image  — attach image to existing draw  │
- * └─────────────────────────────────────────────────────────────────────┘
+ * ┌─────────────────────────────────────────────────────────────────────────────┐
+ * │  POST /api/external/upload        — upload results (1, 2, or 3 digits)      │
+ * │  POST /api/external/upload-image  — upload result image for the same draw   │
+ * │  GET  /api/external/results       — inspect results by date & lotteryType   │
+ * └─────────────────────────────────────────────────────────────────────────────┘
  */
 
 const express = require('express');
 const router = express.Router();
 const path = require('path');
-const { Op } = require('sequelize');
 
 const apiKeyAuth = require('../middleware/apiKey');
 const { uploadExternal } = require('../middleware/upload');
-const { SingaporeLottery, DearLottery, SESSION_VALUES } = require('../models/Lottery');
+const { SingaporeLottery, DearLottery, SESSIONS } = require('../models/Lottery');
+const { formatDate, buildResultSets } = require('../utils/formatResults');
 
-// ── All routes in this file are protected by API key ─────────────────────────
+// ── All routes require API key authentication ─────────────────────────────────
 router.use(apiKeyAuth);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Build the public image URL */
-const imageUrl = (req, lotteryType, filename) => {
+/** Normalize session/time string to: 'morning', 'day', or 'evening' */
+const normalizeSession = (raw) => {
+  if (!raw) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (['mor', 'morning', 'morn'].includes(s)) return 'morning';
+  if (['day', 'afternoon', 'noon'].includes(s)) return 'day';
+  if (['evn', 'evening', 'eve', 'night'].includes(s)) return 'evening';
+  return SESSIONS.includes(s) ? s : null;
+};
+
+/** Normalize lottery model */
+const getModel = (lotteryType) => {
+  const type = String(lotteryType).trim().toLowerCase();
+  if (type === 'singapore') return { model: SingaporeLottery, name: 'singapore' };
+  if (type === 'dear') return { model: DearLottery, name: 'dear' };
+  return null;
+};
+
+/** Build public image URL */
+const imageUrl = (req, lotteryName, filename) => {
   if (!filename) return null;
-  const folder = lotteryType === 'dear' ? 'dear' : 'singapore';
+  const folder = lotteryName === 'dear' ? 'dear' : 'singapore';
   return `${req.protocol}://${req.get('host')}/uploads/${folder}/${path.basename(filename)}`;
 };
 
-/**
- * Find the matching draw record by the three identifying fields:
- *   lotteryType + date + session   (+ optional drawNumber for extra precision)
- */
-const findDraw = async (lotteryType, drawDate, session, drawNumber) => {
-  const where = { drawDate, session };
-  if (drawNumber) where.drawNumber = drawNumber;
-
-  if (lotteryType === 'dear') return DearLottery.findOne({ where });
-  return SingaporeLottery.findOne({ where });
-};
-
-/** Derive last-digit fields from a prize string automatically */
-const deriveDigits = (prizeStr) => {
-  if (!prizeStr) return { lastOneDigit: null, lastTwoDigits: null, lastThreeDigits: null };
-  const digits = prizeStr.replace(/\D/g, ''); // keep only digits
-  return {
-    lastOneDigit: digits.length >= 1 ? digits.slice(-1) : null,
-    lastTwoDigits: digits.length >= 2 ? digits.slice(-2) : null,
-    lastThreeDigits: digits.length >= 3 ? digits.slice(-3) : null,
-  };
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/external/upload
-// Upload lottery result data (creates or updates a draw record)
+// 1. POST /api/external/upload
+// Upload results for a game (morning, day, or evening).
+// Accepts single (1 digit), double (2 digits), or triple (3 digits), or all three.
 // ─────────────────────────────────────────────────────────────────────────────
 /**
- * Body (application/json):
+ * Request Body (JSON):
  * {
- *   "lotteryType"    : "singapore" | "dear",         ← required
- *   "date"           : "2024-11-01",                  ← required  (YYYY-MM-DD)
- *   "session"        : "morning" | "day" | "evening" | "night",  ← required
- *   "drawNumber"     : "SG-1234",                     ← optional (draw ID)
- *   "lotteryName"    : "Dear Morning",                ← required for Dear only
- *   "firstPrize"     : "1234567",
- *   "secondPrize"    : "765432",
- *   "thirdPrize"     : "987654",
- *   "lastOneDigit"   : "7",    ← optional; auto-derived from firstPrize if omitted
- *   "lastTwoDigits"  : "67",   ← optional; auto-derived from firstPrize if omitted
- *   "lastThreeDigits": "567",  ← optional; auto-derived from firstPrize if omitted
- *   "winningNumbers" : "12,34,56,07,23,45",  ← Singapore only (optional)
- *   "consolationPrizes": [...],               ← Dear only (optional JSON array)
- *   "isPublished"    : true
+ *   "lotteryType"   : "singapore" | "dear",          // required
+ *   "date"          : "2026-05-24",                  // required (YYYY-MM-DD)
+ *   "time"          : "morning" | "day" | "evening", // required (or "session")
+ *
+ *   // OPTION A: Specify individual digits directly
+ *   "singleDigit"   : "7",                           // optional (1 digit)
+ *   "doubleDigit"   : "27",                          // optional (2 digits)
+ *   "tripleDigit"   : "827",                         // optional (3 digits)
+ *
+ *   // OPTION B: Specify by digitType + winningNumber
+ *   "digitType"     : "single" | "double" | "triple" | 1 | 2 | 3,
+ *   "winningNumber" : "7",
+ *
+ *   "drawNumber"    : "SG-101",                      // optional
+ *   "isPublished"   : true                           // optional (default: true)
  * }
  */
 router.post('/upload', async (req, res) => {
@@ -84,207 +82,216 @@ router.post('/upload', async (req, res) => {
     const {
       lotteryType,
       date,
+      drawDate,
+      time,
       session,
+      digitType,
+      winningNumber,
+      number,
       drawNumber,
-      lotteryName,
-      firstPrize,
-      secondPrize,
-      thirdPrize,
-      winningNumbers,
-      consolationPrizes,
       isPublished,
     } = req.body;
 
-    // ── Validation ────────────────────────────────────────────────────────────
-    if (!lotteryType || !['singapore', 'dear'].includes(lotteryType)) {
+    // Validate lotteryType
+    const modelInfo = getModel(lotteryType);
+    if (!modelInfo) {
       return res.status(400).json({
         success: false,
-        message: 'lotteryType is required and must be "singapore" or "dear".',
-      });
-    }
-    if (!date) {
-      return res.status(400).json({ success: false, message: 'date is required (YYYY-MM-DD).' });
-    }
-    if (!session || !SESSION_VALUES.includes(session)) {
-      return res.status(400).json({
-        success: false,
-        message: `session is required. Allowed values: ${SESSION_VALUES.join(', ')}.`,
-      });
-    }
-    if (lotteryType === 'dear' && !lotteryName) {
-      return res.status(400).json({
-        success: false,
-        message: 'lotteryName is required for Dear lottery (e.g. "Dear Morning").',
+        message: 'Invalid or missing lotteryType. Allowed values: "singapore" or "dear".',
       });
     }
 
-    // ── Auto-derive digit fields if not explicitly provided ───────────────────
-    let {
-      lastOneDigit,
-      lastTwoDigits,
-      lastThreeDigits,
-    } = req.body;
-
-    if (!lastOneDigit && !lastTwoDigits && !lastThreeDigits && firstPrize) {
-      const derived = deriveDigits(firstPrize);
-      lastOneDigit = derived.lastOneDigit;
-      lastTwoDigits = derived.lastTwoDigits;
-      lastThreeDigits = derived.lastThreeDigits;
+    // Validate date
+    const targetDate = date || drawDate;
+    if (!targetDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'date is required (format: YYYY-MM-DD).',
+      });
     }
 
-    const publish = isPublished === true || isPublished === 'true';
+    // Validate time / session
+    const targetSession = normalizeSession(time || session);
+    if (!targetSession) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid or missing time/session. Allowed values: ${SESSIONS.join(', ')}.`,
+      });
+    }
 
-    // ── Upsert: update if same draw exists, else create ───────────────────────
-    const existing = await findDraw(lotteryType, date, session, drawNumber);
+    // Resolve single, double, triple digits
+    let singleDigit = req.body.singleDigit ?? req.body.single;
+    let doubleDigit = req.body.doubleDigit ?? req.body.double;
+    let tripleDigit = req.body.tripleDigit ?? req.body.triple;
 
-    if (lotteryType === 'singapore') {
-      if (existing) {
-        await existing.update({
-          drawNumber: drawNumber ?? existing.drawNumber,
-          winningNumbers: winningNumbers ?? existing.winningNumbers,
-          firstPrize: firstPrize ?? existing.firstPrize,
-          secondPrize: secondPrize ?? existing.secondPrize,
-          thirdPrize: thirdPrize ?? existing.thirdPrize,
-          lastOneDigit: lastOneDigit ?? existing.lastOneDigit,
-          lastTwoDigits: lastTwoDigits ?? existing.lastTwoDigits,
-          lastThreeDigits: lastThreeDigits ?? existing.lastThreeDigits,
-          isPublished: isPublished !== undefined ? publish : existing.isPublished,
-        });
-        return res.status(200).json({
-          success: true,
-          message: 'Singapore result updated.',
-          result: existing,
-        });
+    // If submitted via digitType + winningNumber/number:
+    const numVal = winningNumber !== undefined ? String(winningNumber).trim() : (number !== undefined ? String(number).trim() : null);
+
+    if (numVal !== null) {
+      const dt = digitType !== undefined ? String(digitType).toLowerCase().trim() : null;
+
+      if (dt === '1' || dt === 'single') {
+        singleDigit = numVal.slice(-1);
+      } else if (dt === '2' || dt === 'double') {
+        doubleDigit = numVal.length >= 2 ? numVal.slice(-2) : numVal.padStart(2, '0');
+      } else if (dt === '3' || dt === 'triple') {
+        tripleDigit = numVal.length >= 3 ? numVal.slice(-3) : numVal.padStart(3, '0');
+      } else {
+        // If digitType wasn't specified but winningNumber was provided:
+        if (numVal.length === 1 && singleDigit === undefined) {
+          singleDigit = numVal;
+        } else if (numVal.length === 2 && doubleDigit === undefined) {
+          doubleDigit = numVal;
+          if (singleDigit === undefined) singleDigit = numVal.slice(-1);
+        } else if (numVal.length >= 3) {
+          if (tripleDigit === undefined) tripleDigit = numVal.slice(-3);
+          if (doubleDigit === undefined) doubleDigit = numVal.slice(-2);
+          if (singleDigit === undefined) singleDigit = numVal.slice(-1);
+        }
       }
-
-      const record = await SingaporeLottery.create({
-        drawDate: date,
-        session,
-        drawNumber,
-        winningNumbers,
-        firstPrize,
-        secondPrize,
-        thirdPrize,
-        lastOneDigit,
-        lastTwoDigits,
-        lastThreeDigits,
-        isPublished: publish,
-      });
-      return res.status(201).json({ success: true, message: 'Singapore result created.', result: record });
     }
 
-    // ── Dear lottery ──────────────────────────────────────────────────────────
-    if (existing) {
-      await existing.update({
-        lotteryName: lotteryName ?? existing.lotteryName,
-        drawNumber: drawNumber ?? existing.drawNumber,
-        firstPrize: firstPrize ?? existing.firstPrize,
-        secondPrize: secondPrize ?? existing.secondPrize,
-        thirdPrize: thirdPrize ?? existing.thirdPrize,
-        lastOneDigit: lastOneDigit ?? existing.lastOneDigit,
-        lastTwoDigits: lastTwoDigits ?? existing.lastTwoDigits,
-        lastThreeDigits: lastThreeDigits ?? existing.lastThreeDigits,
-        consolationPrizes: consolationPrizes
-          ? (typeof consolationPrizes === 'string' ? JSON.parse(consolationPrizes) : consolationPrizes)
-          : existing.consolationPrizes,
-        isPublished: isPublished !== undefined ? publish : existing.isPublished,
+    if (singleDigit === undefined && doubleDigit === undefined && tripleDigit === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide at least one digit result (singleDigit, doubleDigit, tripleDigit, or digitType + winningNumber).',
       });
-      return res.status(200).json({ success: true, message: 'Dear result updated.', result: existing });
     }
 
-    const record = await DearLottery.create({
-      drawDate: date,
-      session,
-      lotteryName,
-      drawNumber,
-      firstPrize,
-      secondPrize,
-      thirdPrize,
-      lastOneDigit,
-      lastTwoDigits,
-      lastThreeDigits,
-      consolationPrizes: consolationPrizes
-        ? (typeof consolationPrizes === 'string' ? JSON.parse(consolationPrizes) : consolationPrizes)
-        : null,
-      isPublished: publish,
+    // Find or create draw record for (drawDate, session)
+    const [draw, created] = await modelInfo.model.findOrCreate({
+      where: {
+        drawDate: targetDate,
+        session: targetSession,
+      },
+      defaults: {
+        singleDigit: singleDigit !== undefined ? String(singleDigit) : null,
+        doubleDigit: doubleDigit !== undefined ? String(doubleDigit) : null,
+        tripleDigit: tripleDigit !== undefined ? String(tripleDigit) : null,
+        drawNumber: drawNumber ?? null,
+        isPublished: isPublished !== undefined ? (isPublished === true || isPublished === 'true') : true,
+      },
     });
-    return res.status(201).json({ success: true, message: 'Dear result created.', result: record });
+
+    if (!created) {
+      const updates = {};
+      if (singleDigit !== undefined) updates.singleDigit = String(singleDigit);
+      if (doubleDigit !== undefined) updates.doubleDigit = String(doubleDigit);
+      if (tripleDigit !== undefined) updates.tripleDigit = String(tripleDigit);
+      if (drawNumber !== undefined) updates.drawNumber = drawNumber;
+      if (isPublished !== undefined) updates.isPublished = isPublished === true || isPublished === 'true';
+
+      await draw.update(updates);
+    }
+
+    return res.status(created ? 201 : 200).json({
+      success: true,
+      message: `${modelInfo.name.toUpperCase()} result ${created ? 'created' : 'updated'} successfully.`,
+      result: {
+        id: draw.id,
+        lotteryType: modelInfo.name,
+        date: draw.drawDate,
+        dateFormatted: formatDate(draw.drawDate),
+        session: draw.session,
+        singleDigit: draw.singleDigit,
+        doubleDigit: draw.doubleDigit,
+        tripleDigit: draw.tripleDigit,
+        drawNumber: draw.drawNumber,
+        resultImage: imageUrl(req, modelInfo.name, draw.resultImage),
+        isPublished: draw.isPublished,
+      },
+    });
   } catch (err) {
-    console.error('External upload error:', err);
+    console.error('External result upload error:', err);
     return res.status(500).json({ success: false, message: err.message || 'Server error.' });
   }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/external/upload-image
-// Attach / replace the result image for an existing draw
+// 2. POST /api/external/upload-image
+// Upload the result sheet image for the exact same draw
 // ─────────────────────────────────────────────────────────────────────────────
 /**
- * Body (multipart/form-data)  — text fields MUST come before the file field:
- * {
- *   "lotteryType"  : "singapore" | "dear",   ← required
- *   "date"         : "2024-11-01",            ← required
- *   "session"      : "morning" | ...,         ← required
- *   "drawNumber"   : "SG-1234",               ← optional (narrows the lookup)
- *   "isPublished"  : "true",                  ← optional (default: no change)
- *   "resultImage"  : <image file>             ← required
- * }
+ * Request Body (multipart/form-data):
+ *   lotteryType  : "singapore" | "dear"          (required)
+ *   date         : "2026-05-24"                  (required)
+ *   time         : "morning" | "day" | "evening" (required, or "session")
+ *   resultImage  : <image file: jpg/png/webp>    (required)
+ *   isPublished  : "true"                        (optional)
  */
 router.post('/upload-image', uploadExternal.single('resultImage'), async (req, res) => {
   try {
-    const { lotteryType, date, session, drawNumber, isPublished } = req.body;
+    const { lotteryType, date, drawDate, time, session, isPublished } = req.body;
 
-    // ── Validation ────────────────────────────────────────────────────────────
-    if (!lotteryType || !['singapore', 'dear'].includes(lotteryType)) {
+    // Validate lotteryType
+    const modelInfo = getModel(lotteryType);
+    if (!modelInfo) {
       return res.status(400).json({
         success: false,
-        message: 'lotteryType is required: "singapore" or "dear".',
+        message: 'Invalid or missing lotteryType: "singapore" or "dear".',
       });
     }
-    if (!date) {
-      return res.status(400).json({ success: false, message: 'date is required (YYYY-MM-DD).' });
-    }
-    if (!session || !SESSION_VALUES.includes(session)) {
+
+    // Validate date
+    const targetDate = date || drawDate;
+    if (!targetDate) {
       return res.status(400).json({
         success: false,
-        message: `session is required. Allowed values: ${SESSION_VALUES.join(', ')}.`,
+        message: 'date is required (YYYY-MM-DD).',
       });
     }
+
+    // Validate time / session
+    const targetSession = normalizeSession(time || session);
+    if (!targetSession) {
+      return res.status(400).json({
+        success: false,
+        message: `time or session is required. Allowed values: ${SESSIONS.join(', ')}.`,
+      });
+    }
+
+    // Validate uploaded file
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: 'resultImage file is required.',
+        message: 'resultImage file is required (jpeg, jpg, png, webp, gif).',
       });
     }
 
-    // ── Find the draw ─────────────────────────────────────────────────────────
-    const existing = await findDraw(lotteryType, date, session, drawNumber);
+    // Find or create the draw record for this date & session
+    const [draw, created] = await modelInfo.model.findOrCreate({
+      where: {
+        drawDate: targetDate,
+        session: targetSession,
+      },
+      defaults: {
+        resultImage: req.file.filename,
+        isPublished: isPublished !== undefined ? (isPublished === true || isPublished === 'true') : true,
+      },
+    });
 
-    if (!existing) {
-      return res.status(404).json({
-        success: false,
-        message: `No ${lotteryType} draw found for date=${date}, session=${session}${drawNumber ? ', drawNumber=' + drawNumber : ''}. Upload the result data first via POST /api/external/upload.`,
-      });
+    if (!created) {
+      const updates = { resultImage: req.file.filename };
+      if (isPublished !== undefined) {
+        updates.isPublished = isPublished === true || isPublished === 'true';
+      }
+      await draw.update(updates);
     }
-
-    // ── Attach image ──────────────────────────────────────────────────────────
-    const updatePayload = { resultImage: req.file.filename };
-    if (isPublished !== undefined) {
-      updatePayload.isPublished = isPublished === 'true' || isPublished === true;
-    }
-    await existing.update(updatePayload);
 
     return res.status(200).json({
       success: true,
-      message: `Image attached to ${lotteryType} draw (${date} / ${session}).`,
+      message: `Image attached to ${modelInfo.name.toUpperCase()} draw (${targetDate} · ${targetSession}).`,
       result: {
-        id: existing.id,
-        lotteryType,
-        date: existing.drawDate,
-        session: existing.session,
-        drawNumber: existing.drawNumber,
-        isPublished: existing.isPublished,
-        resultImage: imageUrl(req, lotteryType, req.file.filename),
+        id: draw.id,
+        lotteryType: modelInfo.name,
+        date: draw.drawDate,
+        dateFormatted: formatDate(draw.drawDate),
+        session: draw.session,
+        singleDigit: draw.singleDigit,
+        doubleDigit: draw.doubleDigit,
+        tripleDigit: draw.tripleDigit,
+        resultImage: imageUrl(req, modelInfo.name, req.file.filename),
+        isPublished: draw.isPublished,
       },
     });
   } catch (err) {
@@ -293,5 +300,55 @@ router.post('/upload-image', uploadExternal.single('resultImage'), async (req, r
   }
 });
 
-module.exports = router;
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. GET /api/external/results
+// Read back results with images (helpful for external systems to verify)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/results', async (req, res) => {
+  try {
+    const { lotteryType = 'singapore', date } = req.query;
+    const modelInfo = getModel(lotteryType);
+    if (!modelInfo) {
+      return res.status(400).json({
+        success: false,
+        message: 'lotteryType must be "singapore" or "dear".',
+      });
+    }
 
+    const where = {};
+    if (date) where.drawDate = date;
+
+    const rows = await modelInfo.model.findAll({
+      where,
+      order: [
+        ['drawDate', 'DESC'],
+        ['session', 'ASC'],
+      ],
+      limit: 30,
+    });
+
+    const results = buildResultSets(rows);
+    const draws = rows.map((r) => ({
+      id: r.id,
+      date: r.drawDate,
+      dateFormatted: formatDate(r.drawDate),
+      session: r.session,
+      singleDigit: r.singleDigit,
+      doubleDigit: r.doubleDigit,
+      tripleDigit: r.tripleDigit,
+      resultImage: imageUrl(req, modelInfo.name, r.resultImage),
+      isPublished: r.isPublished,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      lotteryType: modelInfo.name,
+      results,
+      draws,
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message || 'Server error.' });
+  }
+});
+
+module.exports = router;

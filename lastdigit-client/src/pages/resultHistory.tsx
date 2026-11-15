@@ -22,13 +22,15 @@ export function ResultHistory({
     title,
     eyebrow,
     results,
+    loading = false,
 }: {
     title: string
     eyebrow: string
     results: ResultSets
+    loading?: boolean
 }) {
     const [digitType, setDigitType] = useState<DigitType>('single')
-    const activeResults = results[digitType]
+    const activeResults = results?.[digitType] || []
 
     return (
         <div className="history-shell">
@@ -44,7 +46,7 @@ export function ResultHistory({
                 <div className="history-title">
                     <span>{eyebrow}</span>
                     <h1>{title}</h1>
-                    <p>Winning numbers by draw date and time.</p>
+                    <p>Live winning numbers by draw date and session.</p>
                 </div>
 
                 <div className="digit-toggle" role="group" aria-label="Choose lottery digit type">
@@ -68,7 +70,7 @@ export function ResultHistory({
                             <span>Showing</span>
                             <strong>{digitOptions.find((option) => option.value === digitType)?.label} digit</strong>
                         </div>
-                        <span>{activeResults.length} recent draws</span>
+                        <span>{loading ? 'Connecting...' : `${activeResults.length} draws`}</span>
                     </div>
 
                     <div className="result-table-scroll">
@@ -91,17 +93,31 @@ export function ResultHistory({
                                 </tr>
                             </thead>
                             <tbody>
-                                {activeResults.map((result, index) => (
-                                    <tr className={index === 0 ? 'latest-row' : ''} key={result.date}>
-                                        <th scope="row">
-                                            {index === 0 && <span className="latest-label">Latest</span>}
-                                            {result.date}
-                                        </th>
-                                        <td>{result.morning}</td>
-                                        <td>{result.day}</td>
-                                        <td>{result.evening}</td>
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={4} style={{ padding: '2.5rem 1rem', color: 'var(--muted)', textAlign: 'center' }}>
+                                            Fetching live results from server...
+                                        </td>
                                     </tr>
-                                ))}
+                                ) : activeResults.length > 0 ? (
+                                    activeResults.map((result, index) => (
+                                        <tr className={index === 0 ? 'latest-row' : ''} key={result.date}>
+                                            <th scope="row">
+                                                {index === 0 && <span className="latest-label">Latest</span>}
+                                                {result.date}
+                                            </th>
+                                            <td>{result.morning}</td>
+                                            <td>{result.day}</td>
+                                            <td>{result.evening}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={4} style={{ padding: '2.5rem 1rem', color: 'var(--muted)', textAlign: 'center' }}>
+                                            No published results found in database.
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

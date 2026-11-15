@@ -1,38 +1,88 @@
-import { FormEvent, useRef, useState } from 'react'
+import { type FormEvent, useRef, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { getSingaporeLatest, getDearLatest, type LatestLotteryResponse, type DrawItem } from '../api/client'
 
 type ResultState = 'idle' | 'winner' | 'not-winner'
+type LotteryChoice = 'singapore' | 'dear'
 
-type Draw = {
-    date: string
-    name: string
-    winningEndings: string[]
-}
-
-const DEFAULT_DRAW: Draw = {
-    date: 'Saturday, May 24, 2025',
-    name: 'Saturday Weekly Draw',
-    winningEndings: ['4827', '1039', '7712'],
-}
-
-export default function LotteryChecker({ draw = DEFAULT_DRAW }: { draw?: Draw }) {
+export default function LotteryChecker() {
+    const [lottery, setLottery] = useState<LotteryChoice>('singapore')
     const [digits, setDigits] = useState('')
     const [result, setResult] = useState<ResultState>('idle')
+    const [matchedDetails, setMatchedDetails] = useState<string>('')
     const [error, setError] = useState('')
+    const [loading, setLoading] = useState(true)
+    const [latestDraw, setLatestDraw] = useState<LatestLotteryResponse | null>(null)
     const inputRef = useRef<HTMLInputElement>(null)
+
+    // ── Fetch live latest draw from server on lottery switch ───────────────────
+    useEffect(() => {
+        let isMounted = true
+        setLoading(true)
+        setError('')
+        setResult('idle')
+
+        const fetchLatest = lottery === 'singapore' ? getSingaporeLatest : getDearLatest
+
+        fetchLatest()
+            .then((data) => {
+                if (isMounted && data.success) {
+                    setLatestDraw(data)
+                }
+            })
+            .catch((err) => {
+                console.error('Failed to load latest draw from server:', err)
+                if (isMounted) setLatestDraw(null)
+            })
+            .finally(() => {
+                if (isMounted) setLoading(false)
+            })
+
+        return () => {
+            isMounted = false
+        }
+    }, [lottery])
 
     const handleSubmit = (event: FormEvent) => {
         event.preventDefault()
 
-        if (digits.length !== 4) {
-            setError('Enter all 4 ending digits to check your ticket.')
+        if (!digits || digits.length < 1) {
+            setError('Please enter your ticket ending digits.')
             setResult('idle')
             inputRef.current?.focus()
             return
         }
 
+        if (!latestDraw || !latestDraw.sessions || latestDraw.sessions.length === 0) {
+            setError('No published draws available to check right now.')
+            return
+        }
+
         setError('')
-        setResult(draw.winningEndings.includes(digits) ? 'winner' : 'not-winner')
+
+        // Search through the latest sessions for a match
+        const matchingSessions: string[] = []
+
+        for (const sessionDraw of latestDraw.sessions as DrawItem[]) {
+            const sName = sessionDraw.session.toUpperCase()
+            if (sessionDraw.singleDigit === digits) {
+                matchingSessions.push(`${sName} (Single Digit: ${sessionDraw.singleDigit})`)
+            }
+            if (sessionDraw.doubleDigit === digits) {
+                matchingSessions.push(`${sName} (Double Digit: ${sessionDraw.doubleDigit})`)
+            }
+            if (sessionDraw.tripleDigit === digits) {
+                matchingSessions.push(`${sName} (Triple Digit: ${sessionDraw.tripleDigit})`)
+            }
+        }
+
+        if (matchingSessions.length > 0) {
+            setResult('winner')
+            setMatchedDetails(matchingSessions.join(', '))
+        } else {
+            setResult('not-winner')
+            setMatchedDetails('')
+        }
     }
 
     const handleChange = (value: string) => {
@@ -49,6 +99,9 @@ export default function LotteryChecker({ draw = DEFAULT_DRAW }: { draw?: Draw })
         window.setTimeout(() => inputRef.current?.focus(), 0)
     }
 
+    const drawDateDisplay = latestDraw?.dateFormatted || (loading ? 'Loading live draw...' : 'No Draw Available')
+    const lotteryNameDisplay = lottery === 'singapore' ? 'Singapore Lottery' : 'Dear Lottery'
+
     return (
         <div className="app-shell">
             <header className="site-header">
@@ -58,20 +111,46 @@ export default function LotteryChecker({ draw = DEFAULT_DRAW }: { draw?: Draw })
                     </span>
                     <span>Last Digit</span>
                 </Link>
-                <span className="results-link">Official draw results</span>
+                <Link className="results-link" to={lottery === 'singapore' ? '/singapore' : '/dear'}>
+                    View All Results →
+                </Link>
             </header>
 
             <main>
                 <section className="hero">
                     <div className="eyebrow">
                         <span className="live-dot" />
-                        Latest draw is ready
+                        Live Server Check
                     </div>
                     <h1>Did luck find you?</h1>
                     <p className="hero-copy">
-                        Enter the last 4 digits on your lottery ticket. We'll check them against the latest draw
-                        in seconds.
+                        Enter your ticket's last digit(s). We'll check them against the latest official draw from the server.
                     </p>
+
+                    {/* ── Lottery Switcher ── */}
+                    <div
+                        className="digit-toggle"
+                        role="group"
+                        aria-label="Choose lottery game"
+                        style={{ margin: '0 0 1.25rem' }}
+                    >
+                        <button
+                            className={lottery === 'singapore' ? 'active' : ''}
+                            onClick={() => setLottery('singapore')}
+                            type="button"
+                        >
+                            <strong>Singapore</strong>
+                            <span>Live Results</span>
+                        </button>
+                        <button
+                            className={lottery === 'dear' ? 'active' : ''}
+                            onClick={() => setLottery('dear')}
+                            type="button"
+                        >
+                            <strong>Dear Lottery</strong>
+                            <span>Live Results</span>
+                        </button>
+                    </div>
 
                     <div className="checker-card">
                         <div className="draw-row">
@@ -79,19 +158,21 @@ export default function LotteryChecker({ draw = DEFAULT_DRAW }: { draw?: Draw })
                                 <CalendarIcon />
                             </div>
                             <div>
-                                <span className="field-label">Checking results for</span>
-                                <strong>{draw.date}</strong>
+                                <span className="field-label">Checking live results for</span>
+                                <strong>{drawDateDisplay}</strong>
+                                <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--muted)' }}>
+                                    {lotteryNameDisplay}
+                                </span>
                             </div>
-                            <span className="draw-status">Change</span>
                         </div>
 
                         {result === 'idle' ? (
                             <form onSubmit={handleSubmit} noValidate>
                                 <label className="input-label" htmlFor="ticket-digits">
-                                    Last 4 ticket digits
+                                    Last ticket digit(s) (1 to 3 digits)
                                 </label>
                                 <div className={`digit-input-wrap ${error ? 'has-error' : ''}`}>
-                                    <span className="input-prefix">•••• ••••</span>
+                                    <span className="input-prefix">••••</span>
                                     <input
                                         ref={inputRef}
                                         id="ticket-digits"
@@ -101,12 +182,12 @@ export default function LotteryChecker({ draw = DEFAULT_DRAW }: { draw?: Draw })
                                         maxLength={4}
                                         value={digits}
                                         onChange={(event) => handleChange(event.target.value)}
-                                        placeholder="0000"
+                                        placeholder="000"
                                         aria-describedby={error ? 'input-error' : 'input-hint'}
                                         aria-invalid={Boolean(error)}
                                         autoFocus
                                     />
-                                    <span className="digit-count">{digits.length}/4</span>
+                                    <span className="digit-count">{digits.length}/3</span>
                                 </div>
                                 {error ? (
                                     <p className="input-error" id="input-error" role="alert">
@@ -114,11 +195,11 @@ export default function LotteryChecker({ draw = DEFAULT_DRAW }: { draw?: Draw })
                                     </p>
                                 ) : (
                                     <p className="input-hint" id="input-hint">
-                                        You'll find these at the far right of your ticket number.
+                                        Check single (1), double (2), or triple (3) digits on your ticket.
                                     </p>
                                 )}
-                                <button className="check-button" type="submit">
-                                    Check my ticket
+                                <button className="check-button" type="submit" disabled={loading}>
+                                    {loading ? 'Connecting...' : 'Check my ticket'}
                                     <ArrowIcon />
                                 </button>
                             </form>
@@ -129,8 +210,8 @@ export default function LotteryChecker({ draw = DEFAULT_DRAW }: { draw?: Draw })
                                 <h2>{result === 'winner' ? 'You have a match!' : 'Not this time'}</h2>
                                 <p>
                                     {result === 'winner'
-                                        ? 'Keep your ticket safe and visit an official retailer to verify your prize.'
-                                        : "Your ending digits didn't match this draw. Every ticket is a new chance."}
+                                        ? `Matched in: ${matchedDetails}! Keep your ticket safe and visit an official retailer.`
+                                        : "Your ending digits didn't match any session in this draw. Every ticket is a new chance."}
                                 </p>
                                 <button className="check-button" type="button" onClick={reset}>
                                     Check another ticket
@@ -143,7 +224,7 @@ export default function LotteryChecker({ draw = DEFAULT_DRAW }: { draw?: Draw })
                             <span className="shield">
                                 <CheckIcon />
                             </span>
-                            Your ticket number stays private and is never stored.
+                            Direct verification against live official database.
                         </div>
                     </div>
                 </section>
@@ -153,21 +234,21 @@ export default function LotteryChecker({ draw = DEFAULT_DRAW }: { draw?: Draw })
                         <span>01</span>
                         <div>
                             <strong>Find your number</strong>
-                            <p>Look for the ticket number printed near the barcode.</p>
+                            <p>Look for the ticket number printed on your lottery ticket.</p>
                         </div>
                     </div>
                     <div className="step">
                         <span>02</span>
                         <div>
-                            <strong>Enter 4 digits</strong>
-                            <p>Type only the four digits at the very end.</p>
+                            <strong>Enter digits</strong>
+                            <p>Type your 1, 2, or 3 ending digits.</p>
                         </div>
                     </div>
                     <div className="step">
                         <span>03</span>
                         <div>
-                            <strong>See your result</strong>
-                            <p>Get a clear answer instantly. No sign-up needed.</p>
+                            <strong>Instant verification</strong>
+                            <p>Direct match across Morning, Day, and Evening live draws.</p>
                         </div>
                     </div>
                 </section>
@@ -175,7 +256,7 @@ export default function LotteryChecker({ draw = DEFAULT_DRAW }: { draw?: Draw })
 
             <footer>
                 <span>Play for fun. Play responsibly.</span>
-                <span>Results shown are for reference. Keep your original ticket.</span>
+                <span>Results verified against official database. Keep your original ticket.</span>
             </footer>
         </div>
     )

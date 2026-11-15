@@ -501,7 +501,7 @@ h1 {
     padding-top: 1rem;
 }
 
-.step > span {
+.step>span {
     color: var(--red);
     font-family: 'Manrope', sans-serif;
     font-size: 0.66rem;
@@ -534,6 +534,7 @@ footer {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
     *,
     *::before,
     *::after {
@@ -723,7 +724,7 @@ footer {
 }
 
 .today-kicker .live-dot {
-    box-shadow: 0 0 0 0.3rem rgba(255,255,255,0.3);
+    box-shadow: 0 0 0 0.3rem rgba(255, 255, 255, 0.3);
     flex-shrink: 0;
 }
 
@@ -844,14 +845,37 @@ footer {
     width: 1.4rem;
 }
 
-.action-icon.blue   { background: #0f7abf; }
-.action-icon.teal   { background: #0a9d89; }
-.action-icon.sky    { background: #2d9de5; }
-.action-icon.pink   { background: #d72661; }
-.action-icon.purple { background: #7c3aed; }
-.action-icon.orange { background: #e88c05; }
-.action-icon.berry  { background: #be185d; }
-.action-icon.cyan   { background: #0891b2; }
+.action-icon.blue {
+    background: #0f7abf;
+}
+
+.action-icon.teal {
+    background: #0a9d89;
+}
+
+.action-icon.sky {
+    background: #2d9de5;
+}
+
+.action-icon.pink {
+    background: #d72661;
+}
+
+.action-icon.purple {
+    background: #7c3aed;
+}
+
+.action-icon.orange {
+    background: #e88c05;
+}
+
+.action-icon.berry {
+    background: #be185d;
+}
+
+.action-icon.cyan {
+    background: #0891b2;
+}
 
 .action-label {
     display: flex;
@@ -866,7 +890,7 @@ footer {
     font-weight: 700;
 }
 
-.action-label > span {
+.action-label>span {
     color: var(--muted);
     font-size: 0.68rem;
 }
@@ -931,7 +955,7 @@ footer {
     padding: 2rem 1rem 3rem;
 }
 
-.history-title > span,
+.history-title>span,
 .simple-kicker {
     color: var(--red);
     font-size: 0.68rem;
@@ -962,6 +986,16 @@ footer {
     display: grid;
     gap: 0.3rem;
     grid-template-columns: repeat(3, 1fr);
+    margin-top: 2rem;
+    padding: 0.3rem;
+}
+
+.game-toggle {
+    background: #e9e2d8;
+    border-radius: 1rem;
+    display: grid;
+    gap: 0.3rem;
+    grid-template-columns: repeat(2, 1fr);
     margin-top: 2rem;
     padding: 0.3rem;
 }
@@ -1012,12 +1046,12 @@ footer {
     padding: 1rem 1rem;
 }
 
-.table-summary > div {
+.table-summary>div {
     display: flex;
     flex-direction: column;
 }
 
-.table-summary > div span {
+.table-summary>div span {
     color: var(--muted);
     font-size: 0.63rem;
 }
@@ -1027,7 +1061,7 @@ footer {
     margin-top: 0.1rem;
 }
 
-.table-summary > span {
+.table-summary>span {
     background: var(--red-soft);
     border-radius: 999px;
     color: var(--red-dark);
@@ -1136,4 +1170,177 @@ footer {
 
 .simple-page p {
     font-size: 0.95rem;
+}
+
+/* ── Lottery Fax Styles ────────────────────────── */
+.fax-eye-btn {
+    align-items: center;
+    background: #f0ebe2;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    color: var(--ink);
+    cursor: pointer;
+    display: inline-flex;
+    height: 2.25rem;
+    justify-content: center;
+    margin: 0 auto;
+    transition: all 180ms ease;
+    width: 2.25rem;
+}
+
+.fax-eye-btn:hover {
+    background: #e4ddcf;
+    transform: scale(1.1);
+}
+
+.fax-eye-btn.has-image {
+    background: var(--red-soft);
+    border-color: rgba(220, 62, 49, 0.25);
+    color: var(--red-dark);
+}
+
+.fax-eye-btn.no-image {
+    background: #f5f0e8;
+    border-color: var(--line);
+    color: var(--muted);
+    opacity: 0.75;
+}
+
+/* ── Almost Full-Screen Modal / Lightbox ───────── */
+.fax-modal-backdrop {
+    align-items: center;
+    background: rgba(18, 16, 14, 0.88);
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    left: 0;
+    padding: 0.75rem;
+    position: fixed;
+    right: 0;
+    top: 0;
+    z-index: 9999;
+    backdrop-filter: blur(6px);
+}
+
+.fax-modal-content {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 1.25rem;
+    box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    max-height: 94vh;
+    max-width: 410px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.fax-modal-header {
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    padding: 0.9rem 1.15rem;
+}
+
+.fax-modal-title {
+    font-family: 'Manrope', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 800;
+    margin: 0;
+}
+
+.fax-modal-subtitle {
+    color: var(--muted);
+    font-size: 0.72rem;
+    margin-top: 0.1rem;
+}
+
+.fax-modal-close {
+    align-items: center;
+    background: #f0ebe2;
+    border: 0;
+    border-radius: 50%;
+    color: var(--ink);
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 0.9rem;
+    font-weight: 700;
+    height: 1.9rem;
+    justify-content: center;
+    transition: background 150ms ease;
+    width: 1.9rem;
+}
+
+.fax-modal-close:hover {
+    background: #e2dbce;
+}
+
+.fax-modal-body {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    max-height: calc(94vh - 4.5rem);
+    overflow-y: auto;
+    padding: 0.85rem;
+}
+
+.fax-modal-img {
+    border-radius: 0.75rem;
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.12);
+    display: block;
+    height: auto;
+    max-height: 78vh;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+/* ── No Image State ────────────────────────────── */
+.no-image-box {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    padding: 2.75rem 1.25rem;
+    text-align: center;
+    width: 100%;
+}
+
+.no-image-icon-wrap {
+    align-items: center;
+    background: #f2ece2;
+    border-radius: 50%;
+    color: var(--muted);
+    display: flex;
+    height: 4.25rem;
+    justify-content: center;
+    margin-bottom: 1.15rem;
+    width: 4.25rem;
+}
+
+.no-image-box h3 {
+    font-family: 'Manrope', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.4rem;
+}
+
+.no-image-box p {
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.55;
+    margin: 0 0 1.25rem;
+    max-width: 18rem;
+}
+
+.no-image-badge {
+    background: #fdf3df;
+    border: 1px solid rgba(164, 109, 18, 0.18);
+    border-radius: 999px;
+    color: #a46d12;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.35rem 0.85rem;
+    text-transform: uppercase;
 }

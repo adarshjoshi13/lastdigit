@@ -32,6 +32,28 @@ const protect = async (req, res, next) => {
 };
 
 /**
+ * Optional auth — attaches req.user if valid token provided, but doesn't block if absent.
+ */
+const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findByPk(decoded.id, {
+        attributes: ['id', 'name', 'email', 'role', 'isActive'],
+      });
+      if (user && user.isActive) {
+        req.user = user;
+      }
+    }
+  } catch (_err) {
+    // Continue without req.user
+  }
+  next();
+};
+
+/**
  * Restrict to admin role only.
  */
 const adminOnly = (req, res, next) => {
@@ -39,5 +61,5 @@ const adminOnly = (req, res, next) => {
   return res.status(403).json({ success: false, message: 'Admin access required.' });
 };
 
-module.exports = { protect, adminOnly };
+module.exports = { protect, optionalAuth, adminOnly };
 
