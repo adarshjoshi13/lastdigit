@@ -5,10 +5,15 @@ const { SingaporeLottery, SESSIONS } = require('../models');
 const { protect, optionalAuth, adminOnly } = require('../middleware/auth');
 const { uploadSingapore } = require('../middleware/upload');
 const { formatDate, buildResultSets } = require('../utils/formatResults');
+const { uploadToFirebase, deleteFromFirebase } = require('../config/firebase');
 
-// ── Helper: build image URL from stored filename ──────────────────────────────
+// ── Helper: build image URL from stored filename or Firebase URL ─────────────
 const imageUrl = (req, filename) => {
   if (!filename) return null;
+  // If already a full URL (e.g. Firebase Storage https://firebasestorage.googleapis.com/...), return as is
+  if (filename.startsWith('http://') || filename.startsWith('https://')) {
+    return filename;
+  }
   return `${req.protocol}://${req.get('host')}/uploads/singapore/${path.basename(filename)}`;
 };
 
@@ -150,6 +155,12 @@ router.post('/', protect, adminOnly, uploadSingapore.single('resultImage'), asyn
       });
     }
 
+    // Upload to Firebase Storage (falls back to local file if Firebase is not yet configured)
+    let uploadedImage = null;
+    if (req.file) {
+      uploadedImage = await uploadToFirebase(req.file, 'singapore');
+    }
+
     const [record, created] = await SingaporeLottery.findOrCreate({
       where: { drawDate, session },
       defaults: {
@@ -157,18 +168,23 @@ router.post('/', protect, adminOnly, uploadSingapore.single('resultImage'), asyn
         doubleDigit,
         tripleDigit,
         drawNumber,
-        resultImage: req.file ? req.file.filename : null,
+        resultImage: uploadedImage,
         isPublished: isPublished !== undefined ? (isPublished === 'true' || isPublished === true) : true,
       },
     });
 
     if (!created) {
+      // If replacing image, delete previous image from Firebase/local if a new one was uploaded
+      if (uploadedImage && record.resultImage && record.resultImage !== uploadedImage) {
+        await deleteFromFirebase(record.resultImage, 'singapore');
+      }
+
       await record.update({
         singleDigit: singleDigit ?? record.singleDigit,
         doubleDigit: doubleDigit ?? record.doubleDigit,
         tripleDigit: tripleDigit ?? record.tripleDigit,
         drawNumber: drawNumber ?? record.drawNumber,
-        resultImage: req.file ? req.file.filename : record.resultImage,
+        resultImage: uploadedImage ?? record.resultImage,
         isPublished: isPublished !== undefined ? (isPublished === 'true' || isPublished === true) : record.isPublished,
       });
     }
@@ -196,6 +212,15 @@ router.put('/:id', protect, adminOnly, uploadSingapore.single('resultImage'), as
 
     const { drawDate, session, singleDigit, doubleDigit, tripleDigit, drawNumber, isPublished } = req.body;
 
+    let uploadedImage = draw.resultImage;
+    if (req.file) {
+      // Delete old image if present
+      if (draw.resultImage) {
+        await deleteFromFirebase(draw.resultImage, 'singapore');
+      }
+      uploadedImage = await uploadToFirebase(req.file, 'singapore');
+    }
+
     await draw.update({
       drawDate: drawDate || draw.drawDate,
       session: session || draw.session,
@@ -203,7 +228,7 @@ router.put('/:id', protect, adminOnly, uploadSingapore.single('resultImage'), as
       doubleDigit: doubleDigit ?? draw.doubleDigit,
       tripleDigit: tripleDigit ?? draw.tripleDigit,
       drawNumber: drawNumber ?? draw.drawNumber,
-      resultImage: req.file ? req.file.filename : draw.resultImage,
+      resultImage: uploadedImage,
       isPublished: isPublished !== undefined ? (isPublished === 'true' || isPublished === true) : draw.isPublished,
     });
 
@@ -227,6 +252,11 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
     const draw = await SingaporeLottery.findByPk(req.params.id);
     if (!draw) return res.status(404).json({ success: false, message: 'Result not found.' });
+
+    if (draw.resultImage) {
+      await deleteFromFirebase(draw.resultImage, 'singapore');
+    }
+
     await draw.destroy();
     return res.status(200).json({ success: true, message: 'Singapore result deleted.' });
   } catch (err) {

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Last Digit</string>
+    <string name="title_activity_main">Last Digit</string>
+    <string name="package_name">com.lastdigit.lottery</string>
+    <string name="custom_url_scheme">com.lastdigit.lottery</string>
+</resources>

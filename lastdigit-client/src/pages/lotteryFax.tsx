@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { getSingaporeResults, getDearResults, type DrawItem } from '../api/client'
+import { getSingaporeResults, getDearResults, API_BASE_URL, type DrawItem } from '../api/client'
 
 export type LotteryType = 'singapore' | 'dear'
+
+function resolveImageUrl(url: string | null): string | null {
+    if (!url) return null
+    if (url.startsWith('http://') || url.startsWith('https://')) return url
+    return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
+}
 
 interface FaxTableRow {
     date: string
@@ -104,7 +110,7 @@ export default function LotteryFaxPage() {
             open: true,
             date,
             session,
-            imageUrl,
+            imageUrl: resolveImageUrl(imageUrl),
         })
     }
 
@@ -128,7 +134,7 @@ export default function LotteryFaxPage() {
                 </div>
 
                 {/* ── Toggle between Singapore and Dear ── */}
-                <div className="digit-toggle" role="group" aria-label="Choose lottery game">
+                <div className="game-toggle digit-toggle " role="group" aria-label="Choose lottery game">
                     <button
                         aria-pressed={lottery === 'singapore'}
                         className={lottery === 'singapore' ? 'active' : ''}

@@ -17,13 +17,13 @@ const actions = [
         tone: 'teal',
         icon: <DearIcon />,
     },
-    {
-        to: '/today',
-        label: 'Number',
-        sublabel: 'Combination',
-        tone: 'sky',
-        icon: <NumberIcon />,
-    },
+    // {
+    //     to: '/today',
+    //     label: 'Number',
+    //     sublabel: 'Combination',
+    //     tone: 'sky',
+    //     icon: <NumberIcon />,
+    // },
     {
         to: '/fax',
         label: 'Lottery Fax',
@@ -31,13 +31,13 @@ const actions = [
         tone: 'pink',
         icon: <FaxIcon />,
     },
-    {
-        to: '/today',
-        label: 'Lucky Search',
-        sublabel: 'Find Number',
-        tone: 'purple',
-        icon: <LuckyIcon />,
-    },
+    // {
+    //     to: '/today',
+    //     label: 'Lucky Search',
+    //     sublabel: 'Find Number',
+    //     tone: 'purple',
+    //     icon: <LuckyIcon />,
+    // },
     {
         to: 'mailto:?subject=Last%20Digit%20Lottery&body=Check%20today%27s%20lottery%20results%20live',
         label: 'Share App',
@@ -65,6 +65,28 @@ const actions = [
 
 export default function HomePage() {
     const [latestDate, setLatestDate] = useState<string>('')
+
+    const handleShare = async (e: React.MouseEvent) => {
+        e.preventDefault()
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Last Digit Lottery',
+                    text: "Check today's Singapore & Dear lottery results live on Last Digit!",
+                    url: 'https://play.google.com/store/apps/details?id=com.lastdigit.lottery',
+                })
+                return
+            } catch {
+                return
+            }
+        }
+        window.location.href = 'mailto:?subject=Last%20Digit%20Lottery&body=Check%20today%27s%20lottery%20results%20live'
+    }
+
+    const handleRate = (e: React.MouseEvent) => {
+        e.preventDefault()
+        window.open('https://play.google.com/store/apps/details?id=com.lastdigit.lottery', '_blank')
+    }
 
     useEffect(() => {
         let isMounted = true
@@ -128,20 +150,40 @@ export default function HomePage() {
 
                 {/* ── Action grid ── */}
                 <section className="action-grid" aria-label="Lottery tools and results">
-                    {actions.map((action) =>
-                        'external' in action && action.external ? (
-                            <a
-                                className="action-tile"
-                                href={action.to}
-                                key={`${action.label}-${action.sublabel}`}
-                            >
-                                <span className={`action-icon ${action.tone}`}>{action.icon}</span>
-                                <span className="action-label">
-                                    <strong>{action.label}</strong>
-                                    <span>{action.sublabel}</span>
-                                </span>
-                            </a>
-                        ) : (
+                    {actions.map((action) => {
+                        if (action.label === 'Share App') {
+                            return (
+                                <button
+                                    key={action.label}
+                                    type="button"
+                                    className="action-tile"
+                                    onClick={handleShare}
+                                >
+                                    <span className={`action-icon ${action.tone}`}>{action.icon}</span>
+                                    <span className="action-label">
+                                        <strong>{action.label}</strong>
+                                        <span>{action.sublabel}</span>
+                                    </span>
+                                </button>
+                            )
+                        }
+                        if (action.label === 'Rate Us') {
+                            return (
+                                <button
+                                    key={action.label}
+                                    type="button"
+                                    className="action-tile"
+                                    onClick={handleRate}
+                                >
+                                    <span className={`action-icon ${action.tone}`}>{action.icon}</span>
+                                    <span className="action-label">
+                                        <strong>{action.label}</strong>
+                                        <span>{action.sublabel}</span>
+                                    </span>
+                                </button>
+                            )
+                        }
+                        return (
                             <Link
                                 className="action-tile"
                                 to={action.to}
@@ -154,7 +196,7 @@ export default function HomePage() {
                                 </span>
                             </Link>
                         )
-                    )}
+                    })}
                 </section>
             </main>
 
@@ -201,14 +243,14 @@ function DearIcon() {
     )
 }
 
-function NumberIcon() {
-    return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <path d="M9 9h1v6M14 9h2M14 12h2M14 15h2M9 15h1" />
-        </svg>
-    )
-}
+// function NumberIcon() {
+//     return (
+//         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+//             <rect x="3" y="3" width="18" height="18" rx="2" />
+//             <path d="M9 9h1v6M14 9h2M14 12h2M14 15h2M9 15h1" />
+//         </svg>
+//     )
+// }
 
 function FaxIcon() {
     return (
@@ -221,15 +263,15 @@ function FaxIcon() {
     )
 }
 
-function LuckyIcon() {
-    return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-            <path d="M11 8v6M8 11h6" />
-        </svg>
-    )
-}
+// function LuckyIcon() {
+//     return (
+//         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+//             <circle cx="11" cy="11" r="8" />
+//             <path d="m21 21-4.35-4.35" />
+//             <path d="M11 8v6M8 11h6" />
+//         </svg>
+//     )
+// }
 
 function ShareIcon() {
     return (

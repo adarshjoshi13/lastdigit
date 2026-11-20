@@ -1,7 +1,14 @@
 /**
  * Centralized API client for communicating with lastdigit-server.
+ *
+ * In production / APK builds, set VITE_API_URL to your live server URL.
+ * e.g. https://api.lastdigit.com
+ *
+ * In development, the Vite dev-server proxy forwards /api → localhost:5000.
  */
 
+// In Capacitor (APK), there's no dev proxy — we need the absolute URL.
+// VITE_API_URL should be set to your production server in .env.production
 export const API_BASE_URL =
     import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -173,3 +180,15 @@ export async function getDearLatest(): Promise<LatestLotteryResponse> {
     return res.json()
 }
 
+export async function getLotteryByDate(
+    lottery: 'singapore' | 'dear',
+    date: string
+): Promise<LotteryResponse> {
+    const res = await fetch(`${API_BASE_URL}/api/${lottery}?date=${encodeURIComponent(date)}`, {
+        headers: authHeaders(),
+    })
+    if (!res.ok) {
+        throw new Error(`Failed to fetch ${lottery} results for ${date} (HTTP ${res.status})`)
+    }
+    return res.json()
+}

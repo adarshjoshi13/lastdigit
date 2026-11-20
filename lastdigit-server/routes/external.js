@@ -19,6 +19,7 @@ const apiKeyAuth = require('../middleware/apiKey');
 const { uploadExternal } = require('../middleware/upload');
 const { SingaporeLottery, DearLottery, SESSIONS } = require('../models/Lottery');
 const { formatDate, buildResultSets } = require('../utils/formatResults');
+const { uploadToFirebase } = require('../config/firebase');
 
 // ── All routes require API key authentication ─────────────────────────────────
 router.use(apiKeyAuth);
@@ -45,9 +46,12 @@ const getModel = (lotteryType) => {
   return null;
 };
 
-/** Build public image URL */
+/** Build public image URL (supports both Firebase URLs and legacy local uploads) */
 const imageUrl = (req, lotteryName, filename) => {
   if (!filename) return null;
+  if (filename.startsWith('http://') || filename.startsWith('https://')) {
+    return filename;
+  }
   const folder = lotteryName === 'dear' ? 'dear' : 'singapore';
   return `${req.protocol}://${req.get('host')}/uploads/${folder}/${path.basename(filename)}`;
 };
@@ -58,24 +62,24 @@ const imageUrl = (req, lotteryName, filename) => {
 // Accepts single (1 digit), double (2 digits), or triple (3 digits), or all three.
 // ─────────────────────────────────────────────────────────────────────────────
 /**
- * Request Body (JSON):
- * {
- *   "lotteryType"   : "singapore" | "dear",          // required
- *   "date"          : "2026-05-24",                  // required (YYYY-MM-DD)
- *   "time"          : "morning" | "day" | "evening", // required (or "session")
+ * Request Body (JSON or x-www-form-urlencoded):
  *
- *   // OPTION A: Specify individual digits directly
- *   "singleDigit"   : "7",                           // optional (1 digit)
- *   "doubleDigit"   : "27",                          // optional (2 digits)
- *   "tripleDigit"   : "827",                         // optional (3 digits)
+ *   lotteryType  : "singapore" | "dear"          (required)
+ *   date         : "2026-05-24"                  (required, YYYY-MM-DD; also accepts "drawDate")
+ *   time         : "morning" | "day" | "evening" (required; also accepts "session")
  *
- *   // OPTION B: Specify by digitType + winningNumber
- *   "digitType"     : "single" | "double" | "triple" | 1 | 2 | 3,
- *   "winningNumber" : "7",
+ *   Format A — all at once:
+ *     singleDigit  : "4"                         (optional)
+ *     doubleDigit  : "94"                        (optional)
+ *     tripleDigit  : "194"                       (optional)
  *
- *   "drawNumber"    : "SG-101",                      // optional
- *   "isPublished"   : true                           // optional (default: true)
- * }
+ *   Format B — one digit type at a time:
+ *     digitType    : "single" | "double" | "triple" | "1" | "2" | "3"
+ *     winningNumber: "4" | "94" | "194"
+ *
+ *   Optional:
+ *     drawNumber   : "BATCH-001"                 (draw / batch reference)
+ *     isPublished  : true | false                (default: true)
  */
 router.post('/upload', async (req, res) => {
   try {
@@ -87,7 +91,6 @@ router.post('/upload', async (req, res) => {
       session,
       digitType,
       winningNumber,
-      number,
       drawNumber,
       isPublished,
     } = req.body;
@@ -97,7 +100,7 @@ router.post('/upload', async (req, res) => {
     if (!modelInfo) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or missing lotteryType. Allowed values: "singapore" or "dear".',
+        message: 'Invalid or missing lotteryType. Allowed values: "singapore", "dear".',
       });
     }
 
@@ -107,6 +110,12 @@ router.post('/upload', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'date is required (format: YYYY-MM-DD).',
+      });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid date format: "${targetDate}". Expected YYYY-MM-DD.`,
       });
     }
 
@@ -119,35 +128,55 @@ router.post('/upload', async (req, res) => {
       });
     }
 
-    // Resolve single, double, triple digits
-    let singleDigit = req.body.singleDigit ?? req.body.single;
-    let doubleDigit = req.body.doubleDigit ?? req.body.double;
-    let tripleDigit = req.body.tripleDigit ?? req.body.triple;
+    // Resolve digit values (Format A or Format B)
+    let { singleDigit, doubleDigit, tripleDigit } = req.body;
 
-    // If submitted via digitType + winningNumber/number:
-    const numVal = winningNumber !== undefined ? String(winningNumber).trim() : (number !== undefined ? String(number).trim() : null);
+    if (digitType && winningNumber !== undefined) {
+      const dt = String(digitType).trim().toLowerCase();
+      const num = String(winningNumber).trim();
 
-    if (numVal !== null) {
-      const dt = digitType !== undefined ? String(digitType).toLowerCase().trim() : null;
-
-      if (dt === '1' || dt === 'single') {
-        singleDigit = numVal.slice(-1);
-      } else if (dt === '2' || dt === 'double') {
-        doubleDigit = numVal.length >= 2 ? numVal.slice(-2) : numVal.padStart(2, '0');
-      } else if (dt === '3' || dt === 'triple') {
-        tripleDigit = numVal.length >= 3 ? numVal.slice(-3) : numVal.padStart(3, '0');
+      if (['single', '1', 'singledigit'].includes(dt)) {
+        singleDigit = num;
+      } else if (['double', '2', 'doubledigit'].includes(dt)) {
+        doubleDigit = num;
+      } else if (['triple', '3', 'tripledigit'].includes(dt)) {
+        tripleDigit = num;
       } else {
-        // If digitType wasn't specified but winningNumber was provided:
-        if (numVal.length === 1 && singleDigit === undefined) {
-          singleDigit = numVal;
-        } else if (numVal.length === 2 && doubleDigit === undefined) {
-          doubleDigit = numVal;
-          if (singleDigit === undefined) singleDigit = numVal.slice(-1);
-        } else if (numVal.length >= 3) {
-          if (tripleDigit === undefined) tripleDigit = numVal.slice(-3);
-          if (doubleDigit === undefined) doubleDigit = numVal.slice(-2);
-          if (singleDigit === undefined) singleDigit = numVal.slice(-1);
-        }
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid digitType. Allowed values: "single" (1), "double" (2), "triple" (3).',
+        });
+      }
+    }
+
+    // Validate digit lengths if provided
+    if (singleDigit !== undefined && singleDigit !== null) {
+      singleDigit = String(singleDigit).trim();
+      if (!/^\d{1,2}$/.test(singleDigit)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid singleDigit: "${singleDigit}". Must be 1 digit (e.g. "4").`,
+        });
+      }
+    }
+
+    if (doubleDigit !== undefined && doubleDigit !== null) {
+      doubleDigit = String(doubleDigit).trim();
+      if (!/^\d{1,3}$/.test(doubleDigit)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid doubleDigit: "${doubleDigit}". Must be 2 digits (e.g. "94").`,
+        });
+      }
+    }
+
+    if (tripleDigit !== undefined && tripleDigit !== null) {
+      tripleDigit = String(tripleDigit).trim();
+      if (!/^\d{1,4}$/.test(tripleDigit)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid tripleDigit: "${tripleDigit}". Must be 3 digits (e.g. "194").`,
+        });
       }
     }
 
@@ -258,6 +287,9 @@ router.post('/upload-image', uploadExternal.single('resultImage'), async (req, r
       });
     }
 
+    // Upload to Firebase Storage (falls back to local filename if Firebase not configured)
+    const uploadedImage = await uploadToFirebase(req.file, modelInfo.name);
+
     // Find or create the draw record for this date & session
     const [draw, created] = await modelInfo.model.findOrCreate({
       where: {
@@ -265,13 +297,13 @@ router.post('/upload-image', uploadExternal.single('resultImage'), async (req, r
         session: targetSession,
       },
       defaults: {
-        resultImage: req.file.filename,
+        resultImage: uploadedImage,
         isPublished: isPublished !== undefined ? (isPublished === true || isPublished === 'true') : true,
       },
     });
 
     if (!created) {
-      const updates = { resultImage: req.file.filename };
+      const updates = { resultImage: uploadedImage };
       if (isPublished !== undefined) {
         updates.isPublished = isPublished === true || isPublished === 'true';
       }
@@ -290,28 +322,34 @@ router.post('/upload-image', uploadExternal.single('resultImage'), async (req, r
         singleDigit: draw.singleDigit,
         doubleDigit: draw.doubleDigit,
         tripleDigit: draw.tripleDigit,
-        resultImage: imageUrl(req, modelInfo.name, req.file.filename),
+        resultImage: imageUrl(req, modelInfo.name, uploadedImage),
         isPublished: draw.isPublished,
       },
     });
   } catch (err) {
-    console.error('External upload-image error:', err);
+    console.error('External image upload error:', err);
     return res.status(500).json({ success: false, message: err.message || 'Server error.' });
   }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. GET /api/external/results
-// Read back results with images (helpful for external systems to verify)
+// Inspect stored results for a given date and lotteryType.
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Query Params:
+ *   lotteryType : "singapore" | "dear" (required)
+ *   date        : "YYYY-MM-DD"         (optional; omit to fetch latest)
+ */
 router.get('/results', async (req, res) => {
   try {
-    const { lotteryType = 'singapore', date } = req.query;
+    const { lotteryType, date } = req.query;
+
     const modelInfo = getModel(lotteryType);
     if (!modelInfo) {
       return res.status(400).json({
         success: false,
-        message: 'lotteryType must be "singapore" or "dear".',
+        message: 'Invalid or missing lotteryType query parameter: "singapore" or "dear".',
       });
     }
 
@@ -324,29 +362,34 @@ router.get('/results', async (req, res) => {
         ['drawDate', 'DESC'],
         ['session', 'ASC'],
       ],
-      limit: 30,
+      limit: date ? 3 : 30,
     });
 
     const results = buildResultSets(rows);
     const draws = rows.map((r) => ({
       id: r.id,
-      date: r.drawDate,
+      lotteryType: modelInfo.name,
+      drawDate: r.drawDate,
       dateFormatted: formatDate(r.drawDate),
       session: r.session,
       singleDigit: r.singleDigit,
       doubleDigit: r.doubleDigit,
       tripleDigit: r.tripleDigit,
       resultImage: imageUrl(req, modelInfo.name, r.resultImage),
+      drawNumber: r.drawNumber,
       isPublished: r.isPublished,
+      updatedAt: r.updatedAt,
     }));
 
     return res.status(200).json({
       success: true,
       lotteryType: modelInfo.name,
+      count: draws.length,
       results,
       draws,
     });
   } catch (err) {
+    console.error('External results query error:', err);
     return res.status(500).json({ success: false, message: err.message || 'Server error.' });
   }
 });

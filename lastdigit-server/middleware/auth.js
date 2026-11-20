@@ -3,11 +3,23 @@ const { User } = require('../models');
 require('dotenv').config();
 
 /**
- * Protect routes — verify JWT token from Authorization header.
- * Sets req.user = { id, email, role }
+ * Protect routes — verify JWT token OR Admin API Key.
+ * - JWT: Authorization: Bearer <token>  → sets req.user from DB
+ * - API Key: X-Admin-Key: <ADMIN_API_KEY>  → sets req.user as synthetic admin
  */
 const protect = async (req, res, next) => {
   try {
+    // ── Admin API Key shortcut (no login required) ────────────────────────────
+    const adminKey = req.headers['x-admin-key'];
+    if (adminKey) {
+      if (adminKey === process.env.ADMIN_API_KEY) {
+        req.user = { id: 0, name: 'Admin', email: 'admin@local', role: 'admin', isActive: true };
+        return next();
+      }
+      return res.status(403).json({ success: false, message: 'Invalid admin key.' });
+    }
+
+    // ── JWT Bearer token ──────────────────────────────────────────────────────
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ success: false, message: 'No token provided. Please log in.' });
@@ -62,4 +74,3 @@ const adminOnly = (req, res, next) => {
 };
 
 module.exports = { protect, optionalAuth, adminOnly };
-

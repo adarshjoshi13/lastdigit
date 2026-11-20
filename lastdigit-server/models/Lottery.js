@@ -39,9 +39,9 @@ const SingaporeLottery = sequelize.define(
       comment: 'Winning number for triple digit (3 digits, e.g. 827)',
     },
     resultImage: {
-      type: DataTypes.STRING(500),
+      type: DataTypes.STRING(1000),
       allowNull: true,
-      comment: 'Uploaded result image filename under /uploads/singapore/',
+      comment: 'Uploaded result image filename or Firebase Storage URL',
     },
     drawNumber: {
       type: DataTypes.STRING(50),
@@ -101,9 +101,9 @@ const DearLottery = sequelize.define(
       comment: 'Winning number for triple digit (3 digits, e.g. 194)',
     },
     resultImage: {
-      type: DataTypes.STRING(500),
+      type: DataTypes.STRING(1000),
       allowNull: true,
-      comment: 'Uploaded result image filename under /uploads/dear/',
+      comment: 'Uploaded result image filename or Firebase Storage URL',
     },
     drawNumber: {
       type: DataTypes.STRING(50),

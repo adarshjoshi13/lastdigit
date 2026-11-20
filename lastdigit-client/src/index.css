@@ -13,8 +13,14 @@ body {
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    background: #d4cfc9;
+    /* On Android device, fill the entire screen (no gray bg) */
+    background: #f6f1e8;
     min-height: 100vh;
+    /* Handle safe area (notch, navigation bar) */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
 }
 
 #root {
@@ -23,4 +29,3 @@ body {
     width: 100%;
     min-height: 100vh;
 }
-
