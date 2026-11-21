@@ -1,8 +1,8 @@
-import type { LotteryType, Screen } from '../App';
+import type { Screen } from '../App';
 import './Home.css';
 
 interface Props {
-  onNavigate: (screen: Screen, type: LotteryType) => void;
+  onNavigate: (screen: Screen) => void;
 }
 
 export default function Home({ onNavigate }: Props) {
@@ -11,56 +11,30 @@ export default function Home({ onNavigate }: Props) {
       <header className="home-header">
         <div className="home-logo">🎯</div>
         <h1 className="home-title">LastDigit Admin</h1>
-        <p className="home-sub">Select lottery type and action</p>
+        <p className="home-sub">Select an action to proceed</p>
       </header>
 
       <section className="home-section">
-        <h2 className="section-label">Singapore Lottery</h2>
         <div className="btn-group">
           <button
-            className="action-btn btn-result"
-            onClick={() => onNavigate('upload-result', 'singapore')}
+            className="action-btn btn-result mb-4"
+            onClick={() => onNavigate('upload-result')}
           >
             <span className="btn-icon">📋</span>
             <span className="btn-text">
               <strong>Upload Result</strong>
-              <small>Enter digits + optional image</small>
+              <small>Select date, session, digit type & winning number</small>
             </span>
           </button>
-          <button
-            className="action-btn btn-fax"
-            onClick={() => onNavigate('upload-fax', 'singapore')}
-          >
-            <span className="btn-icon">🖼️</span>
-            <span className="btn-text">
-              <strong>Upload Fax</strong>
-              <small>Upload fax / result image only</small>
-            </span>
-          </button>
-        </div>
-      </section>
 
-      <section className="home-section">
-        <h2 className="section-label">Dear Lottery</h2>
-        <div className="btn-group">
-          <button
-            className="action-btn btn-result"
-            onClick={() => onNavigate('upload-result', 'dear')}
-          >
-            <span className="btn-icon">📋</span>
-            <span className="btn-text">
-              <strong>Upload Result</strong>
-              <small>Enter digits + optional image</small>
-            </span>
-          </button>
           <button
             className="action-btn btn-fax"
-            onClick={() => onNavigate('upload-fax', 'dear')}
+            onClick={() => onNavigate('upload-fax')}
           >
             <span className="btn-icon">🖼️</span>
             <span className="btn-text">
               <strong>Upload Fax</strong>
-              <small>Upload fax / result image only</small>
+              <small>Upload 512 × 696 fax result image</small>
             </span>
           </button>
         </div>
@@ -68,4 +42,3 @@ export default function Home({ onNavigate }: Props) {
     </div>
   );
 }
-

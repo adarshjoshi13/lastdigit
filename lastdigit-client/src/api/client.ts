@@ -9,8 +9,7 @@
 
 // In Capacitor (APK), there's no dev proxy — we need the absolute URL.
 // VITE_API_URL should be set to your production server in .env.production
-export const API_BASE_URL =
-    import.meta.env.VITE_API_URL || 'http://localhost:5000'
+export const API_BASE_URL = import.meta.env.VITE_API_URL
 
 export interface User {
     id: number

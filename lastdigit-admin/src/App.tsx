@@ -12,22 +12,25 @@ export default function App() {
   const [lotteryType, setLotteryType] = useState<LotteryType>('singapore');
 
   const goHome = () => setScreen('home');
-
-  const navigate = (s: Screen, type: LotteryType) => {
-    setLotteryType(type);
-    setScreen(s);
-  };
+  const navigate = (s: Screen) => setScreen(s);
 
   return (
     <div className="app">
       {screen === 'home' && <Home onNavigate={navigate} />}
       {screen === 'upload-result' && (
-        <UploadResult lotteryType={lotteryType} onBack={goHome} />
+        <UploadResult
+          lotteryType={lotteryType}
+          onChangeLotteryType={setLotteryType}
+          onBack={goHome}
+        />
       )}
       {screen === 'upload-fax' && (
-        <UploadFax lotteryType={lotteryType} onBack={goHome} />
+        <UploadFax
+          lotteryType={lotteryType}
+          onChangeLotteryType={setLotteryType}
+          onBack={goHome}
+        />
       )}
     </div>
   );
 }
-

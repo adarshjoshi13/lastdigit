@@ -1,14 +1,17 @@
 /* Shared form styles */
 .form-page {
+  width: 100%;
+  max-width: 450px;
   min-height: 100vh;
-  max-width: 520px;
   margin: 0 auto;
   padding: 0 0 60px;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 .form-header {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -18,6 +21,7 @@
   position: sticky;
   top: 0;
   z-index: 10;
+  box-sizing: border-box;
 }
 
 .back-btn {
@@ -31,6 +35,7 @@
   flex-shrink: 0;
   transition: color 0.1s, border-color 0.1s;
 }
+
 .back-btn:hover {
   color: var(--text);
   border-color: var(--accent);
@@ -49,17 +54,21 @@
 }
 
 .form-body {
+  width: 100%;
   padding: 20px 16px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  box-sizing: border-box;
 }
 
 /* Fields */
 .field {
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  box-sizing: border-box;
 }
 
 .field-label {
@@ -94,6 +103,7 @@
   -webkit-appearance: none;
   appearance: none;
 }
+
 .field-input:focus {
   outline: none;
   border-color: var(--accent);
@@ -145,6 +155,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 /* Dropzone */
 .dropzone {
+  width: 100%;
   min-height: 100px;
   border: 2px dashed var(--border);
   border-radius: var(--radius);
@@ -155,7 +166,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   overflow: hidden;
   transition: border-color 0.15s, background 0.15s;
+  box-sizing: border-box;
 }
+
 .dropzone:hover {
   border-color: var(--accent);
   background: rgba(108, 99, 255, 0.05);
@@ -214,16 +227,19 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-size: 14px;
   font-weight: 500;
 }
+
 .alert-success {
   background: rgba(76, 175, 128, 0.15);
   border: 1px solid var(--success);
   color: var(--success);
 }
+
 .alert-error {
   background: rgba(255, 82, 82, 0.1);
   border: 1px solid var(--error);
   color: var(--error);
 }
+
 .alert-loading {
   background: rgba(108, 99, 255, 0.1);
   border: 1px solid var(--accent);
@@ -242,13 +258,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   width: 100%;
   transition: opacity 0.15s, transform 0.1s;
 }
+
 .submit-btn:active {
   transform: scale(0.98);
 }
+
 .submit-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
 .submit-btn.btn-fax-color {
   background: var(--accent2);
 }
@@ -257,9 +276,284 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .form-page {
     padding-top: 20px;
   }
+
   .form-header {
     border-radius: var(--radius) var(--radius) 0 0;
     position: relative;
   }
 }
 
+
+/* Status badge for existing / new draw */
+.status-indicator-wrap {
+  width: 100%;
+  margin-top: -6px;
+}
+
+.status-badge {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+.status-badge.checking {
+  background: var(--surface2);
+  color: var(--text2);
+}
+
+.status-badge.exists {
+  background: rgba(255, 179, 71, 0.12);
+  border: 1px solid rgba(255, 179, 71, 0.35);
+  color: var(--warning);
+}
+
+.status-badge.new {
+  background: rgba(76, 175, 128, 0.12);
+  border: 1px solid rgba(76, 175, 128, 0.35);
+  color: var(--success);
+}
+
+/* Current image on file notice */
+.current-image-notice {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.current-image-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+}
+
+.img-preview-thumb {
+  max-width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: #000;
+}
+
+.current-image-hint {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+/* Fax preview container with stable aspect ratio to prevent CLS / jumping */
+.fax-preview-container {
+  width: 100%;
+  max-width: 100%;
+  max-height: 480px;
+  margin: 0 auto;
+  aspect-ratio: 512 / 696;
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: relative;
+  background: #0d1117;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.fax-preview-container:hover {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 1px var(--accent2);
+}
+
+.fax-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.fax-preview-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.fax-preview-overlay-btn {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(22, 27, 34, 0.92);
+  color: #fff;
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.fax-preview-container:hover .fax-preview-overlay-btn {
+  background: var(--accent2);
+  border-color: var(--accent2);
+}
+
+.submit-btn.btn-secondary-outline {
+  background: var(--surface2);
+  border: 1px solid var(--accent2);
+  color: var(--accent2);
+}
+
+.submit-btn.btn-secondary-outline:hover {
+  background: rgba(255, 101, 132, 0.1);
+}
+
+
+/* ── Lottery Type Tabs ───────────────────────────── */
+.lottery-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.lottery-tab {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.lottery-tab.active {
+  background: rgba(108, 99, 255, 0.18);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Select Dropdown */
+.field-select {
+  cursor: pointer;
+  background-color: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 500;
+  padding: 12px 14px;
+}
+
+.field-select option {
+  background-color: var(--surface);
+  color: var(--text);
+  padding: 8px;
+}
+
+/* Large Digit Input */
+.large-digit {
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  letter-spacing: 3px !important;
+  text-align: center;
+  padding: 14px !important;
+}
+
+/* Existing digits summary */
+.existing-digits-summary {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 4px;
+}
+
+/* Field label with spec */
+.field-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dimension-spec {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent2);
+  background: rgba(255, 101, 132, 0.12);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* Dimension Indicator */
+.dimension-indicator {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.dimension-indicator.exact {
+  background: rgba(76, 175, 128, 0.15);
+  border: 1px solid var(--success);
+  color: var(--success);
+}
+
+.dimension-indicator.mismatch {
+  background: rgba(255, 179, 71, 0.12);
+  border: 1px solid rgba(255, 179, 71, 0.35);
+  color: var(--warning);
+}
+
+.dimension-mismatch-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auto-resize-btn {
+  align-self: flex-start;
+  background: var(--accent2);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.auto-resize-btn:hover {
+  opacity: 0.9;
+}

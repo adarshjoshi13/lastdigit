@@ -50,7 +50,9 @@
 .btn-group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  gap: 30px;
 }
 
 .action-btn {
@@ -64,7 +66,7 @@
   color: var(--text);
   text-align: left;
   transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
-  width: 100%;
+  width: 70%;
 }
 
 .action-btn:active {
@@ -107,10 +109,10 @@
 
 @media (min-width: 600px) {
   .btn-group {
-    flex-direction: row;
+    flex-direction: column;
   }
+
   .action-btn {
     flex: 1;
   }
 }
-

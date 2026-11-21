@@ -4,6 +4,12 @@
   padding: 0;
 }
 
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
 :root {
   --bg: #0f0f13;
   --surface: #1a1a24;

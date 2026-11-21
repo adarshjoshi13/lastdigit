@@ -23,7 +23,11 @@ const imageUrl = (req, filename) => {
 router.get('/', optionalAuth, async (req, res) => {
   try {
     const { date, session, page = 1, limit = 30 } = req.query;
-    const where = { isPublished: true };
+    const where = {};
+    // If not authenticated admin, only return published draws
+    if (!req.user || req.user.role !== 'admin') {
+      where.isPublished = true;
+    }
     if (date) where.drawDate = date;
     if (session) where.session = session;
 
@@ -48,6 +52,7 @@ router.get('/', optionalAuth, async (req, res) => {
       tripleDigit: r.tripleDigit,
       resultImage: imageUrl(req, r.resultImage),
       drawNumber: r.drawNumber,
+      isPublished: r.isPublished,
       createdAt: r.createdAt,
     }));
 
@@ -121,7 +126,7 @@ router.get('/latest', optionalAuth, async (req, res) => {
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const draw = await SingaporeLottery.findOne({
-      where: { id: req.params.id, isPublished: true },
+      where: { id: req.params.id },
     });
     if (!draw) return res.status(404).json({ success: false, message: 'Result not found.' });
 
@@ -140,7 +145,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 
 // ══ ADMIN ROUTES ══════════════════════════════════════════════════════════════
 
-// ── POST /api/singapore — admin: create/upsert a session draw with optional image
+// ── POST /api/singapore — admin: upsert (create if not exists, update if exists)
 router.post('/', protect, adminOnly, uploadSingapore.single('resultImage'), async (req, res) => {
   try {
     const { drawDate, session, singleDigit, doubleDigit, tripleDigit, drawNumber, isPublished } = req.body;
@@ -161,37 +166,48 @@ router.post('/', protect, adminOnly, uploadSingapore.single('resultImage'), asyn
       uploadedImage = await uploadToFirebase(req.file, 'singapore');
     }
 
+    const cleanSingle = (singleDigit !== undefined && singleDigit !== null && singleDigit !== '') ? String(singleDigit).trim() : null;
+    const cleanDouble = (doubleDigit !== undefined && doubleDigit !== null && doubleDigit !== '') ? String(doubleDigit).trim() : null;
+    const cleanTriple = (tripleDigit !== undefined && tripleDigit !== null && tripleDigit !== '') ? String(tripleDigit).trim() : null;
+    const cleanDrawNum = (drawNumber !== undefined && drawNumber !== null && drawNumber !== '') ? String(drawNumber).trim() : null;
+
+    // Find or create: if record for (drawDate, session) doesn't exist, create it
     const [record, created] = await SingaporeLottery.findOrCreate({
       where: { drawDate, session },
       defaults: {
-        singleDigit,
-        doubleDigit,
-        tripleDigit,
-        drawNumber,
+        singleDigit: cleanSingle,
+        doubleDigit: cleanDouble,
+        tripleDigit: cleanTriple,
+        drawNumber: cleanDrawNum,
         resultImage: uploadedImage,
         isPublished: isPublished !== undefined ? (isPublished === 'true' || isPublished === true) : true,
       },
     });
 
+    // If record already existed, update only provided fields without wiping existing data
     if (!created) {
-      // If replacing image, delete previous image from Firebase/local if a new one was uploaded
+      // If a new image was uploaded and there was an old image, delete previous from Firebase/local
       if (uploadedImage && record.resultImage && record.resultImage !== uploadedImage) {
         await deleteFromFirebase(record.resultImage, 'singapore');
       }
 
-      await record.update({
-        singleDigit: singleDigit ?? record.singleDigit,
-        doubleDigit: doubleDigit ?? record.doubleDigit,
-        tripleDigit: tripleDigit ?? record.tripleDigit,
-        drawNumber: drawNumber ?? record.drawNumber,
-        resultImage: uploadedImage ?? record.resultImage,
-        isPublished: isPublished !== undefined ? (isPublished === 'true' || isPublished === true) : record.isPublished,
-      });
+      const updates = {};
+      if (cleanSingle !== null) updates.singleDigit = cleanSingle;
+      if (cleanDouble !== null) updates.doubleDigit = cleanDouble;
+      if (cleanTriple !== null) updates.tripleDigit = cleanTriple;
+      if (cleanDrawNum !== null) updates.drawNumber = cleanDrawNum;
+      if (uploadedImage) updates.resultImage = uploadedImage;
+      if (isPublished !== undefined) {
+        updates.isPublished = isPublished === 'true' || isPublished === true;
+      }
+
+      await record.update(updates);
     }
 
     return res.status(created ? 201 : 200).json({
       success: true,
-      message: created ? 'Singapore draw created.' : 'Singapore draw updated.',
+      action: created ? 'created' : 'updated',
+      message: created ? 'Singapore draw created successfully.' : 'Singapore draw updated successfully.',
       result: {
         ...record.toJSON(),
         dateFormatted: formatDate(record.drawDate),
@@ -199,7 +215,7 @@ router.post('/', protect, adminOnly, uploadSingapore.single('resultImage'), asyn
       },
     });
   } catch (err) {
-    console.error('Singapore create error:', err);
+    console.error('Singapore create/update error:', err);
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
@@ -221,16 +237,18 @@ router.put('/:id', protect, adminOnly, uploadSingapore.single('resultImage'), as
       uploadedImage = await uploadToFirebase(req.file, 'singapore');
     }
 
-    await draw.update({
+    const updates = {
       drawDate: drawDate || draw.drawDate,
       session: session || draw.session,
-      singleDigit: singleDigit ?? draw.singleDigit,
-      doubleDigit: doubleDigit ?? draw.doubleDigit,
-      tripleDigit: tripleDigit ?? draw.tripleDigit,
-      drawNumber: drawNumber ?? draw.drawNumber,
       resultImage: uploadedImage,
-      isPublished: isPublished !== undefined ? (isPublished === 'true' || isPublished === true) : draw.isPublished,
-    });
+    };
+    if (singleDigit !== undefined && singleDigit !== '') updates.singleDigit = String(singleDigit).trim();
+    if (doubleDigit !== undefined && doubleDigit !== '') updates.doubleDigit = String(doubleDigit).trim();
+    if (tripleDigit !== undefined && tripleDigit !== '') updates.tripleDigit = String(tripleDigit).trim();
+    if (drawNumber !== undefined && drawNumber !== '') updates.drawNumber = String(drawNumber).trim();
+    if (isPublished !== undefined) updates.isPublished = isPublished === 'true' || isPublished === true;
+
+    await draw.update(updates);
 
     return res.status(200).json({
       success: true,
